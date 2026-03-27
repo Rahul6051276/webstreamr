@@ -7,7 +7,6 @@ import { Extractor } from './Extractor';
 
 export class VidSrc extends Extractor {
   public readonly id = 'vidsrc';
-
   public readonly label = 'VidSrc';
 
   private readonly fetcher: Fetcher;
@@ -15,10 +14,10 @@ export class VidSrc extends Extractor {
 
   public constructor(fetcher: Fetcher, tlds: NonEmptyArray<string>) {
     super();
-
     this.fetcher = fetcher;
-    // .win डोमेन को जोड़ना
-    this.tlds = tlds.includes('win' as any) ? tlds : [...tlds, 'win'] as unknown as NonEmptyArray<string>;
+    // यहाँ .win डोमेन को सुरक्षित तरीके से जोड़ा गया है
+    const updatedTlds = tlds.includes('win') ? tlds : [...tlds, 'win'];
+    this.tlds = updatedTlds as unknown as NonEmptyArray<string>;
   }
 
   public supports(_ctx: Context, url: URL): boolean {
@@ -45,30 +44,30 @@ export class VidSrc extends Extractor {
       if (error instanceof TooManyRequestsError && tlds.length) {
         return this.extractUsingRandomTld(ctx, url, countryCode, tlds);
       }
-
       throw error;
     }
 
     const $ = cheerio.load(html);
-
-    const iframeUrl = new URL(($('#player_iframe').attr('src') as string).replace(/^\/\//, 'https://'));
+    const iframeUrlAttr = $('#player_iframe').attr('src');
+    if (!iframeUrlAttr) throw new NotFoundError();
+    
+    const iframeUrl = new URL(iframeUrlAttr.replace(/^\/\//, 'https://'));
     const title = $('title').text().trim();
 
     return Promise.all(
       $('.server')
         .map((_i, el) => ({ serverName: $(el).text().trim(), dataHash: $(el).data('hash') }))
         .toArray()
-        // यहाँ हमने सर्वर के नाम अपडेट किए हैं
+        // यहाँ हमने हिंदी और अन्य वर्किंग सर्वर्स को रखा है
         .filter(({ serverName }) => ['Hindi', 'Vidsrc', 'Vidplay', '2embed'].includes(serverName))
         .map(async ({ serverName, dataHash }) => {
           const iframeHtml = await this.fetcher.text(ctx, new URL(`/rcp/${dataHash}`, iframeUrl.origin), { headers: { Referer: iframeUrl.origin } });
-          const srcMatch = iframeHtml.match(`src:\\s?'(.*)'`) as string[];
+          const srcMatch = iframeHtml.match(/src:\s?'(.*)'/);
+          if (!srcMatch) throw new NotFoundError();
 
           const playerHtml = await this.fetcher.text(ctx, new URL(srcMatch[1] as string, iframeUrl.origin), { headers: { Referer: iframeUrl.origin } });
-          const fileMatch = playerHtml.match(`file:\\s?'(.*)'`);
-          if (!fileMatch) {
-            throw new NotFoundError();
-          }
+          const fileMatch = playerHtml.match(/file:\s?'(.*)'/);
+          if (!fileMatch) throw new NotFoundError();
 
           const m3u8Url = new URL(fileMatch[1] as string);
 
