@@ -17,7 +17,7 @@ export class VidSrc extends Extractor {
     super();
 
     this.fetcher = fetcher;
-    // यहाँ हमने .win डोमेन को पक्का जोड़ दिया है ताकि यह नए डोमेन पर काम करे
+    // .win डोमेन को जोड़ना
     this.tlds = tlds.includes('win' as any) ? tlds : [...tlds, 'win'] as unknown as NonEmptyArray<string>;
   }
 
@@ -58,7 +58,7 @@ export class VidSrc extends Extractor {
       $('.server')
         .map((_i, el) => ({ serverName: $(el).text().trim(), dataHash: $(el).data('hash') }))
         .toArray()
-        // यहाँ हमने 'CloudStream Pro' को हटाकर 'Hindi', 'Vidsrc', और 'Vidplay' डाल दिया है
+        // यहाँ हमने सर्वर के नाम अपडेट किए हैं
         .filter(({ serverName }) => ['Hindi', 'Vidsrc', 'Vidplay', '2embed'].includes(serverName))
         .map(async ({ serverName, dataHash }) => {
           const iframeHtml = await this.fetcher.text(ctx, new URL(`/rcp/${dataHash}`, iframeUrl.origin), { headers: { Referer: iframeUrl.origin } });
