@@ -17,7 +17,8 @@ export class VidSrc extends Extractor {
     super();
 
     this.fetcher = fetcher;
-    this.tlds = tlds;
+    // यहाँ हमने .win डोमेन को जोड़ दिया है ताकि यह नए डोमेन पर काम करे
+    this.tlds = tlds.includes('win' as any) ? tlds : [...tlds, 'win'] as unknown as NonEmptyArray<string>;
   }
 
   public supports(_ctx: Context, url: URL): boolean {
@@ -55,9 +56,10 @@ export class VidSrc extends Extractor {
 
     return Promise.all(
       $('.server')
-        .map((_i, el) => ({ serverName: $(el).text(), dataHash: $(el).data('hash') }))
+        .map((_i, el) => ({ serverName: $(el).text().trim(), dataHash: $(el).data('hash') }))
         .toArray()
-        .filter(({ serverName }) => serverName === 'CloudStream Pro')
+        // यहाँ हमने 'CloudStream Pro' की जगह 'Hindi', 'Vidsrc' और 'Vidplay' डाल दिया है
+        .filter(({ serverName }) => ['Hindi', 'Vidsrc', 'Vidplay', '2embed'].includes(serverName))
         .map(async ({ serverName, dataHash }) => {
           const iframeHtml = await this.fetcher.text(ctx, new URL(`/rcp/${dataHash}`, iframeUrl.origin), { headers: { Referer: iframeUrl.origin } });
           const srcMatch = iframeHtml.match(`src:\\s?'(.*)'`) as string[];
