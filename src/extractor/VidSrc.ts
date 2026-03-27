@@ -53,35 +53,36 @@ export class VidSrc extends Extractor {
     const iframeUrl = new URL(iframeUrlAttr.replace(/^\/\//, 'https://'));
     const title = $('title').text().trim();
 
+    const servers = $('.server')
+      .map((_i, el) => ({ serverName: $(el).text().trim(), dataHash: $(el).data('hash') }))
+      .toArray()
+      .filter(({ serverName }) => ['Hindi', 'Vidsrc', 'Vidplay', '2embed'].includes(serverName));
+
     return Promise.all(
-      $('.server')
-        .map((_i, el) => ({ serverName: $(el).text().trim(), dataHash: $(el).data('hash') }))
-        .toArray()
-        .filter(({ serverName }) => ['Hindi', 'Vidsrc', 'Vidplay', '2embed'].includes(serverName))
-        .map(async ({ serverName, dataHash }) => {
-          const iframeHtml = await this.fetcher.text(ctx, new URL(`/rcp/${dataHash}`, iframeUrl.origin), { headers: { Referer: iframeUrl.origin } });
-          const srcMatch = iframeHtml.match(/src:\s?'(.*)'/);
-          if (!srcMatch) throw new NotFoundError();
+      servers.map(async ({ serverName, dataHash }) => {
+        const iframeHtml = await this.fetcher.text(ctx, new URL(`/rcp/${dataHash}`, iframeUrl.origin), { headers: { Referer: iframeUrl.origin } });
+        const srcMatch = iframeHtml.match(/src:\s?'(.*)'/);
+        if (!srcMatch) throw new NotFoundError();
 
-          const playerHtml = await this.fetcher.text(ctx, new URL(srcMatch[1] as string, iframeUrl.origin), { headers: { Referer: iframeUrl.origin } });
-          const fileMatch = playerHtml.match(/file:\s?'(.*)'/);
-          if (!fileMatch) throw new NotFoundError();
+        const playerHtml = await this.fetcher.text(ctx, new URL(srcMatch[1] as string, iframeUrl.origin), { headers: { Referer: iframeUrl.origin } });
+        const fileMatch = playerHtml.match(/file:\s?'(.*)'/);
+        if (!fileMatch) throw new NotFoundError();
 
-          const m3u8Url = new URL(fileMatch[1] as string);
+        const m3u8Url = new URL(fileMatch[1] as string);
 
-          return {
-            url: m3u8Url,
-            format: Format.hls,
-            label: `${this.label} (${serverName})`,
-            sourceId: `${this.id}_${slugify(serverName)}_${countryCode}`,
-            ttl: this.ttl,
-            meta: {
-              countryCodes: [countryCode],
-              height: await guessHeightFromPlaylist(ctx, this.fetcher, m3u8Url),
-              title,
-            },
-          };
-        }),
+        return {
+          url: m3u8Url,
+          format: Format.hls,
+          label: `${this.label} (${serverName})`,
+          sourceId: `${this.id}_${slugify(serverName)}_${countryCode}`,
+          ttl: this.ttl,
+          meta: {
+            countryCodes: [countryCode],
+            height: await guessHeightFromPlaylist(ctx, this.fetcher, m3u8Url),
+            title,
+          },
+        };
+      })
     );
   }
 }
