@@ -15,7 +15,6 @@ export class VidSrc extends Extractor {
   public constructor(fetcher: Fetcher, tlds: NonEmptyArray<string>) {
     super();
     this.fetcher = fetcher;
-    // यहाँ .win डोमेन को सुरक्षित तरीके से जोड़ा गया है
     const updatedTlds = tlds.includes('win') ? tlds : [...tlds, 'win'];
     this.tlds = updatedTlds as unknown as NonEmptyArray<string>;
   }
@@ -58,7 +57,6 @@ export class VidSrc extends Extractor {
       $('.server')
         .map((_i, el) => ({ serverName: $(el).text().trim(), dataHash: $(el).data('hash') }))
         .toArray()
-        // यहाँ हमने हिंदी और अन्य वर्किंग सर्वर्स को रखा है
         .filter(({ serverName }) => ['Hindi', 'Vidsrc', 'Vidplay', '2embed'].includes(serverName))
         .map(async ({ serverName, dataHash }) => {
           const iframeHtml = await this.fetcher.text(ctx, new URL(`/rcp/${dataHash}`, iframeUrl.origin), { headers: { Referer: iframeUrl.origin } });
