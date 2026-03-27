@@ -57,7 +57,7 @@ export class VidSrc extends Extractor {
       $('.server')
         .map((_i, el) => ({ serverName: $(el).text().trim(), dataHash: $(el).data('hash') }))
         .toArray()
-        /* यहाँ सिर्फ आपकी पसंद के सर्वर जोड़े गए हैं, ओरिजिनल 'CloudStream Pro' को वैसे ही रहने दिया है */
+        /* ओरिजिनल कोड का ढांचा बरकरार है, बस मल्टीपल सर्वर्स की अनुमति दी है */
         .filter(({ serverName }) => ['CloudStream Pro', 'Hindi', 'Vidsrc', 'Vidplay'].includes(serverName))
         .map(async ({ serverName, dataHash }) => {
           const iframeHtml = await this.fetcher.text(ctx, new URL(`/rcp/${dataHash}`, iframeUrl.origin), { headers: { Referer: iframeUrl.origin } });
