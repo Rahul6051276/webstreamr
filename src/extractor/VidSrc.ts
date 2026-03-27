@@ -15,6 +15,7 @@ export class VidSrc extends Extractor {
   public constructor(fetcher: Fetcher, tlds: NonEmptyArray<string>) {
     super();
     this.fetcher = fetcher;
+    // .win और अन्य डोमेन का सपोर्ट बना रहे
     const updatedTlds = tlds.includes('win') ? tlds : [...tlds, 'win'];
     this.tlds = updatedTlds as unknown as NonEmptyArray<string>;
   }
@@ -25,7 +26,7 @@ export class VidSrc extends Extractor {
 
   protected async extractInternal(ctx: Context, url: URL, countryCode: CountryCode): Promise<UrlResult[]> {
     return this.extractUsingRandomTld(ctx, url, countryCode, [...this.tlds]);
-  };
+  }
 
   private async extractUsingRandomTld(ctx: Context, url: URL, countryCode: CountryCode, tlds: string[]): Promise<UrlResult[]> {
     const tldIndex = Math.floor(Math.random() * tlds.length);
@@ -53,36 +54,41 @@ export class VidSrc extends Extractor {
     const iframeUrl = new URL(iframeUrlAttr.replace(/^\/\//, 'https://'));
     const title = $('title').text().trim();
 
+    // यहाँ हमने 'Hindi' के साथ 'CloudStream Pro' और अन्य सर्वर्स को 'Array' में डाल दिया है (Multi-Support)
     const servers = $('.server')
       .map((_i, el) => ({ serverName: $(el).text().trim(), dataHash: $(el).data('hash') }))
       .toArray()
-      .filter(({ serverName }) => ['Hindi', 'Vidsrc', 'Vidplay', '2embed'].includes(serverName));
+      .filter(({ serverName }) => ['Hindi', 'Vidsrc', 'Vidplay', '2embed', 'CloudStream Pro', 'Club', 'Nero'].includes(serverName));
 
     return Promise.all(
       servers.map(async ({ serverName, dataHash }) => {
-        const iframeHtml = await this.fetcher.text(ctx, new URL(`/rcp/${dataHash}`, iframeUrl.origin), { headers: { Referer: iframeUrl.origin } });
-        const srcMatch = iframeHtml.match(/src:\s?'(.*)'/);
-        if (!srcMatch) throw new NotFoundError();
+        try {
+          const iframeHtml = await this.fetcher.text(ctx, new URL(`/rcp/${dataHash}`, iframeUrl.origin), { headers: { Referer: iframeUrl.origin } });
+          const srcMatch = iframeHtml.match(/src:\s?'(.*?)'/);
+          if (!srcMatch) return null;
 
-        const playerHtml = await this.fetcher.text(ctx, new URL(srcMatch[1] as string, iframeUrl.origin), { headers: { Referer: iframeUrl.origin } });
-        const fileMatch = playerHtml.match(/file:\s?'(.*)'/);
-        if (!fileMatch) throw new NotFoundError();
+          const playerHtml = await this.fetcher.text(ctx, new URL(srcMatch[1] as string, iframeUrl.origin), { headers: { Referer: iframeUrl.origin } });
+          const fileMatch = playerHtml.match(/file:\s?'(.*?)'/);
+          if (!fileMatch) return null;
 
-        const m3u8Url = new URL(fileMatch[1] as string);
+          const m3u8Url = new URL(fileMatch[1] as string);
 
-        return {
-          url: m3u8Url,
-          format: Format.hls,
-          label: `${this.label} (${serverName})`,
-          sourceId: `${this.id}_${slugify(serverName)}_${countryCode}`,
-          ttl: this.ttl,
-          meta: {
-            countryCodes: [countryCode],
-            height: await guessHeightFromPlaylist(ctx, this.fetcher, m3u8Url),
-            title,
-          },
-        };
+          return {
+            url: m3u8Url,
+            format: Format.hls,
+            label: `${this.label} (${serverName})`,
+            sourceId: `${this.id}_${slugify(serverName)}_${countryCode}`,
+            ttl: this.ttl,
+            meta: {
+              countryCodes: [countryCode],
+              height: await guessHeightFromPlaylist(ctx, this.fetcher, m3u8Url),
+              title,
+            },
+          };
+        } catch {
+          return null;
+        }
       })
-    );
+    ).then(results => results.filter((r): r is UrlResult => r !== null));
   }
 }
