@@ -7,6 +7,7 @@ import { Extractor } from './Extractor';
 
 export class VidSrc extends Extractor {
   public readonly id = 'vidsrc';
+
   public readonly label = 'VidSrc';
 
   private readonly fetcher: Fetcher;
@@ -14,10 +15,9 @@ export class VidSrc extends Extractor {
 
   public constructor(fetcher: Fetcher, tlds: NonEmptyArray<string>) {
     super();
+
     this.fetcher = fetcher;
-    // .win और अन्य डोमेन का सपोर्ट बना रहे
-    const updatedTlds = tlds.includes('win') ? tlds : [...tlds, 'win'];
-    this.tlds = updatedTlds as unknown as NonEmptyArray<string>;
+    this.tlds = tlds;
   }
 
   public supports(_ctx: Context, url: URL): boolean {
@@ -26,7 +26,7 @@ export class VidSrc extends Extractor {
 
   protected async extractInternal(ctx: Context, url: URL, countryCode: CountryCode): Promise<UrlResult[]> {
     return this.extractUsingRandomTld(ctx, url, countryCode, [...this.tlds]);
-  }
+  };
 
   private async extractUsingRandomTld(ctx: Context, url: URL, countryCode: CountryCode, tlds: string[]): Promise<UrlResult[]> {
     const tldIndex = Math.floor(Math.random() * tlds.length);
@@ -44,32 +44,30 @@ export class VidSrc extends Extractor {
       if (error instanceof TooManyRequestsError && tlds.length) {
         return this.extractUsingRandomTld(ctx, url, countryCode, tlds);
       }
+
       throw error;
     }
 
     const $ = cheerio.load(html);
-    const iframeUrlAttr = $('#player_iframe').attr('src');
-    if (!iframeUrlAttr) throw new NotFoundError();
-    
-    const iframeUrl = new URL(iframeUrlAttr.replace(/^\/\//, 'https://'));
+
+    const iframeUrl = new URL(($('#player_iframe').attr('src') as string).replace(/^\/\//, 'https://'));
     const title = $('title').text().trim();
 
-    // यहाँ हमने 'Hindi' के साथ 'CloudStream Pro' और अन्य सर्वर्स को 'Array' में डाल दिया है (Multi-Support)
-    const servers = $('.server')
-      .map((_i, el) => ({ serverName: $(el).text().trim(), dataHash: $(el).data('hash') }))
-      .toArray()
-      .filter(({ serverName }) => ['Hindi', 'Vidsrc', 'Vidplay', '2embed', 'CloudStream Pro', 'Club', 'Nero'].includes(serverName));
-
     return Promise.all(
-      servers.map(async ({ serverName, dataHash }) => {
-        try {
+      $('.server')
+        .map((_i, el) => ({ serverName: $(el).text().trim(), dataHash: $(el).data('hash') }))
+        .toArray()
+        /* यहाँ सिर्फ आपकी पसंद के सर्वर जोड़े गए हैं, ओरिजिनल 'CloudStream Pro' को वैसे ही रहने दिया है */
+        .filter(({ serverName }) => ['CloudStream Pro', 'Hindi', 'Vidsrc', 'Vidplay'].includes(serverName))
+        .map(async ({ serverName, dataHash }) => {
           const iframeHtml = await this.fetcher.text(ctx, new URL(`/rcp/${dataHash}`, iframeUrl.origin), { headers: { Referer: iframeUrl.origin } });
-          const srcMatch = iframeHtml.match(/src:\s?'(.*?)'/);
-          if (!srcMatch) return null;
+          const srcMatch = iframeHtml.match(`src:\\s?'(.*)'`) as string[];
 
           const playerHtml = await this.fetcher.text(ctx, new URL(srcMatch[1] as string, iframeUrl.origin), { headers: { Referer: iframeUrl.origin } });
-          const fileMatch = playerHtml.match(/file:\s?'(.*?)'/);
-          if (!fileMatch) return null;
+          const fileMatch = playerHtml.match(`file:\\s?'(.*)'`);
+          if (!fileMatch) {
+            throw new NotFoundError();
+          }
 
           const m3u8Url = new URL(fileMatch[1] as string);
 
@@ -85,10 +83,7 @@ export class VidSrc extends Extractor {
               title,
             },
           };
-        } catch {
-          return null;
-        }
-      })
-    ).then(results => results.filter((r): r is UrlResult => r !== null));
+        }),
+    );
   }
 }
