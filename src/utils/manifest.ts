@@ -1,16 +1,22 @@
 import { Extractor } from '../extractor';
 import { Source } from '../source';
 import { Config, CountryCode, CustomManifest } from '../types';
-import { disableExtractorConfigKey, isExtractorDisabled } from './config';
+import {
+  disableExtractorConfigKey,
+  excludeResolutionConfigKey,
+  isExtractorDisabled,
+  isResolutionExcluded,
+} from './config';
 import { envGetAppId, envGetAppName } from './env';
 import { flagFromCountryCode, languageFromCountryCode } from './language';
+import { RESOLUTIONS } from './resolution';
 
 const typedEntries = <T extends object>(obj: T): [keyof T, T[keyof T]][] => (Object.entries(obj) as [keyof T, T[keyof T]][]);
 
 export const buildManifest = (sources: Source[], extractors: Extractor[], config: Config): CustomManifest => {
   const manifest: CustomManifest = {
     id: envGetAppId(),
-    version: '0.66.16', // x-release-please-version
+    version: '0.68.0', // x-release-please-version
     name: envGetAppName(),
     description: 'Provides HTTP URLs from streaming websites. Configure add-on for additional languages. Add MediaFlow proxy for more URLs.',
     resources: [
@@ -90,6 +96,15 @@ export const buildManifest = (sources: Source[], extractors: Extractor[], config
     type: 'password',
     title: 'MediaFlow Proxy Password',
     default: config['mediaFlowProxyPassword'] ?? '',
+  });
+
+  RESOLUTIONS.forEach((resolution) => {
+    manifest.config.push({
+      key: excludeResolutionConfigKey(resolution),
+      type: 'checkbox',
+      title: `Exclude resolution ${resolution}`,
+      ...(isResolutionExcluded(config, resolution) && { default: 'checked' }),
+    });
   });
 
   extractors.forEach((extractor) => {
