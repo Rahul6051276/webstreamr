@@ -1,6 +1,7 @@
 import bytes from 'bytes';
 import * as cheerio from 'cheerio';
 import { Context, Format, InternalUrlResult, Meta } from '../types';
+import { findCountryCodes, findHeight } from '../utils';
 import { Extractor } from './Extractor';
 
 export class HubCloud extends Extractor {
@@ -25,6 +26,10 @@ export class HubCloud extends Extractor {
     const linksHtml = await this.fetcher.text(ctx, new URL(redirectUrlMatch[1] as string), { headers: { Referer: url.href } });
     const $ = cheerio.load(linksHtml);
 
+    const title = $('title').text().trim();
+    const countryCodes = [...new Set([...meta.countryCodes ?? [], ...findCountryCodes(title)])];
+    const height = meta.height ?? findHeight(title);
+
     return Promise.all([
       ...$('a')
         .filter((_i, el) => {
@@ -42,7 +47,9 @@ export class HubCloud extends Extractor {
               ...meta,
               bytes: bytes.parse($('#size').text()) as number,
               extractorId: `${this.id}_fsl`,
-              title: $('title').text().trim(),
+              countryCodes,
+              height,
+              title,
             },
           };
         }).toArray(),
@@ -62,7 +69,9 @@ export class HubCloud extends Extractor {
               ...meta,
               bytes: bytes.parse($('#size').text()) as number,
               extractorId: `${this.id}_fslv2`,
-              title: $('title').text().trim(),
+              countryCodes,
+              height,
+              title,
             },
           };
         }).toArray(),
@@ -81,7 +90,9 @@ export class HubCloud extends Extractor {
               ...meta,
               bytes: bytes.parse($('#size').text()) as number,
               extractorId: `${this.id}_pixelserver`,
-              title: $('title').text().trim(),
+              countryCodes,
+              height,
+              title,
             },
             requestHeaders: { Referer: userUrl.href },
           };
